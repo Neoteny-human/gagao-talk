@@ -1,0 +1,151 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<h1>{{title}}</h1>
+<fieldset>
+  <legend>친구 목록</legend>
+  <table>
+    <thead>
+    <tr>
+      <th>이름</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for friend in friends %}
+      {% if friend._id.toString() !== user.toString() %}
+        <tr data-id="{{friend._id}}">
+          <td>{{friend.username}}</td>
+          <td>
+            <button
+              data-name="{{friend.username}}"
+              data-id="{{friend._id}}"
+              class="join-btn"
+            >대화하기
+            </button>
+          </td>
+        </tr>
+      {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="error-message">{{error}}</div>
+</fieldset>
+
+<fieldset>
+  <legend>채팅방 목록</legend>
+  <table class="chatroom-table">
+    <thead>
+    <tr>
+      <th>방 제목</th>
+      <th>입장</th>
+      <th>내용</th>
+    </tr>
+    </thead>
+    <tbody>
+      {% for room in rooms %}
+      <tr data-id="{{room._id}}">
+        <td>
+          {% for user in room.users %}
+            {{ user.username }}{% if not loop.last %}, {% endif %}
+          {% endfor %}
+        </td>
+        <td>
+          <button
+            data-password="{{'true' if room.password else 'false'}}"
+            data-id="{{room._id}}"
+            class="enter-btn"
+          >입장</button>
+        </td>
+        <td>
+          {{room.lastMessage}}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="error-message">{{error}}</div>
+</fieldset>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+  const socket = io.connect('http://localhost:8005/room', { // 네임스페이스
+    path: '/socket.io',
+  });
+
+  socket.on('newChat', function (data) { //{ roomId, chat, users }
+    const chatTableBody = document.querySelector('.chatroom-table tbody');
+    const existingRow = chatTableBody.querySelector(`tr[data-id='${data.roomId}']`);
+    if (existingRow) {
+      const chatCell = existingRow.getElementsByTagName('td')[2];
+      chatCell.textContent = data.chat;
+    } else {
+      const tr = document.createElement('tr');
+      tr.dataset.id = data.roomId;
+
+      let td = document.createElement('td');
+      td.textContent = data.users.map(user => user.username).join(', ');
+      tr.appendChild(td);
+
+      td = document.createElement('td');
+      const button = document.createElement('button');
+      button.textContent = '입장';
+      button.dataset.id = data.roomId;
+      button.addEventListener('click', addEnterBtnEvent);
+      td.appendChild(button);
+      tr.appendChild(td);
+
+      td = document.createElement('td');
+      td.textContent = data.chat;
+      tr.appendChild(td);
+
+      chatTableBody.appendChild(tr);
+    }
+  });
+
+
+  function addJoinBtnEvent(e) { // 대화하기 클릭 시
+    e.preventDefault();
+
+    const friend_id = e.target.dataset.id;
+    const user_id = "{{user}}";
+    const users = [friend_id, user_id];
+
+    axios.post('http://localhost:8005/room', {
+      users,
+    }).then(function (response) {
+      const roomId = response.data.roomId;
+      window.location.href = `/room/${roomId}`;
+    })
+    .catch(function (error) {
+      console.error(error);
+    });
+  }
+
+  document.querySelectorAll('.join-btn').forEach(function (btn) {
+    btn.addEventListener('click', addJoinBtnEvent);
+  });
+
+  function addEnterBtnEvent(e) { // 입장 클릭 시
+    e.preventDefault();
+
+    const roomId = e.target.dataset.id;
+    window.location.href = `/room/${roomId}`;
+    
+  }
+  
+  document.querySelectorAll('.enter-btn').forEach(function (btn) {
+    btn.addEventListener('click', addEnterBtnEvent);
+  });
+</script>
+{% endblock %}
+
+{% block script %}
+<script>
+  window.onload = () => {
+    if (new URL(location.href).searchParams.get('error')) {
+      alert(new URL(location.href).searchParams.get('error'));
+    }
+  };
+</script>
+{% endblock %}

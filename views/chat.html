@@ -1,0 +1,188 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<h1>
+  {% for user in room.users %}
+  {% if user._id.toString() !== user.toString() %}
+  {{ user.username }}{% if not loop.last %}, {% endif %}
+  {% endif %}
+  {% endfor %}
+</h1>
+<a href="/friend" id="friend-btn">목록으로</a>
+<a href="/friend" id="exit-btn">방 나가기</a>
+<fieldset>
+  <legend>채팅 내용</legend>
+  <div id="chat-list">
+    {% for chat in chats %}
+    {% if chat.type === 'user' %}
+    {% if chat.user._id.toString() === user.toString() %}
+    <div class="mine">
+      <div>{{ chat.user.username }}</div>
+      {% if chat.gif %}
+      <img src="/gif/{{ chat.gif }}">
+      {% else %}
+      <div>{{ chat.chat }}</div>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="other">
+      <div>{{ chat.user.username }}</div>
+      {% if chat.gif %}
+      <img src="/gif/{{ chat.gif }}">
+      {% else %}
+      <div>{{ chat.chat }}</div>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% elif chat.type === 'system' and chat.inout === 'out' %}
+    <div data-id="{{chat.user._id}}" class="system clickable">
+      <div>{{ chat.chat }}</div>
+    </div>
+    {% elif chat.type === 'system' %}
+    <div class="system">
+      <div>{{ chat.chat }}</div>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</fieldset>
+<form action="/chat" id="chat-form" method="post" enctype="multipart/form-data">
+  <label for="gif">GIF 올리기</label>
+  <input type="file" id="gif" name="gif" accept="image/gif">
+  <input type="text" id="chat" name="chat">
+  <button type="submit">전송</button>
+</form>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io.connect('http://localhost:8005/chat', {
+    path: '/socket.io',
+  });
+  socket.emit('join', {
+    url: new URL(location).pathname.split('/').at(-1),
+    user: '{{user}}',
+  });
+  // socket.on('join', function (data) {
+  //   const div = document.createElement('div');
+  //   div.classList.add('system');
+  //   const chat = document.createElement('div');
+  //   chat.textContent = data.chat;
+  //   div.appendChild(chat);
+  //   document.querySelector('#chat-list').appendChild(div);
+  // });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var clickableSystemDivs = document.querySelectorAll('div.system.clickable');
+
+    clickableSystemDivs.forEach(function (div) {
+      div.addEventListener('click', addInviteBtnEvent);
+    });
+  });
+
+  socket.on('leaveRoom', function (data) {
+    const div = document.createElement('div');
+    div.dataset.id = data.user;
+    div.classList.add('system', 'clickable');
+    div.addEventListener('click', addInviteBtnEvent);
+    const chat = document.createElement('div');
+    chat.textContent = data.chat;
+    div.appendChild(chat);
+    document.querySelector('#chat-list').appendChild(div);
+  });
+  socket.on('enterRoom', function (data) {
+    const div = document.createElement('div');
+    div.classList.add('system');
+    const chat = document.createElement('div');
+    chat.textContent = data.chat;
+    div.appendChild(chat);
+    document.querySelector('#chat-list').appendChild(div);
+  });
+
+  socket.on('chat', function (data) {
+    const div = document.createElement('div');
+    if (data.type === 'system') {
+      div.classList.add('system');
+    } else if (data.user._id === '{{user}}') {
+      div.classList.add('mine');
+    } else {
+      div.classList.add('other');
+    }
+    const name = document.createElement('div');
+    name.textContent = data.user.username;
+    div.appendChild(name);
+    if (data.chat) {
+      const chat = document.createElement('div');
+      chat.textContent = data.chat;
+      div.appendChild(chat);
+    } else {
+      const gif = document.createElement('img');
+      gif.src = '/gif/' + data.gif;
+      div.appendChild(gif);
+    }
+    document.querySelector('#chat-list').appendChild(div);
+  });
+
+  document.querySelector('#chat-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (e.target.chat.value) {
+      axios.post('/room/{{room._id}}/chat', {
+        chat: this.chat.value,
+      })
+        .then(() => {
+          e.target.chat.value = '';
+        })
+        .catch((err) => {
+          console.error(err);
+        });
+    }
+  });
+  document.querySelector('#gif').addEventListener('change', function (e) {
+    console.log(e.target.files);
+    const formData = new FormData();
+    formData.append('gif', e.target.files[0]);
+    axios.post('/room/{{room._id}}/gif', formData)
+      .then(() => {
+        e.target.file = null;
+      })
+      .catch((err) => {
+        console.error(err);
+      });
+  });
+
+  document.getElementById('exit-btn').addEventListener('click', function (e) {
+    e.preventDefault();
+    const urlArray = window.location.href.split('/');
+    const roomId = urlArray[urlArray.length - 1];
+    const userId = "{{user}}";
+    const username = "{{username}}";
+    // socket.emit('leaveRoom', username);
+    axios.delete(`/room/${roomId}/${userId}`)
+      .then(function (response) {
+        window.location = '/friend';
+      })
+      .catch(function (error) {
+        console.error('Error:', error);
+      });
+  });
+
+  function addInviteBtnEvent(e) { // 대화하기 클릭 시
+    e.preventDefault();
+
+    const systemDiv = e.target.closest('.system.clickable');
+    if (!systemDiv) return;
+    const user_id = systemDiv.dataset.id;
+    const urlArray = window.location.href.split('/');
+    const room_id = urlArray[urlArray.length - 1];
+
+    axios.post('http://localhost:8005/invite', {
+      user_id,
+      room_id,
+    }).then(function (response) {
+      window.location.href = `/room/${room_id}`;
+    })
+      .catch(function (error) {
+        console.error(error);
+      });
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="login-page">
+    <div class="form">
+      <form class="register-form" id="join-form" action="/auth/join" method="post">
+        <input id="join-nick" type="text" name="username" placeholder="name"/>
+        <input id="join-password" type="password" name="password" placeholder="password"/>
+        <input id="join-email" type="email" name="email" placeholder="email address"/>
+        <button>create</button>
+        <p class="message">Already registered? <a href="#">Sign In</a></p>
+      </form>
+      <form class="login-form" id="login-form" action="/auth/login" method="post">
+        <input id="emial" type="email" placeholder="이메일" name="email" required autofocus/>
+        <input id="password" type="password" name="password" placeholder="password" required/>
+        <button>login</button>
+        <p class="message">Not registered? <a href="#">Create an account</a></p>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script>
+  $(document).ready(function(){
+    $('.message a').click(function(){
+      $('form').animate({height: "toggle", opacity: "toggle"}, "slow");
+    });
+  });
+</script>
+
+  {% endblock %}
